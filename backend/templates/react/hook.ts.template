@@ -1,0 +1,16 @@
+import { useState, useEffect } from 'react';
+
+export const useHook = () => {
+  // Your hook implementation
+  const [state, setState] = useState<unknown>(null);
+
+  useEffect(() => {
+    // Side effects
+  }, []);
+
+  return {
+    state,
+    // Return hook values
+  };
+};
+

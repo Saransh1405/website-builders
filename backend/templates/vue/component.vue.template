@@ -1,0 +1,16 @@
+<template>
+  <div class="component">
+    <!-- Your component template -->
+  </div>
+</template>
+
+<script setup lang="ts">
+// Your component logic
+</script>
+
+<style scoped>
+.component {
+  /* Your component styles */
+}
+</style>
+
