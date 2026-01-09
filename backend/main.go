@@ -14,6 +14,7 @@ import (
 	"website-builder/internal/repository"
 	"website-builder/internal/router"
 	"website-builder/internal/service"
+	"website-builder/internal/service/intent_parser"
 )
 
 func main() {
@@ -36,7 +37,7 @@ func main() {
 	}
 
 	// TODO: Initialize intent parser
-	intentParser := service.NewIntentParserService()
+	intentParser := intent_parser.NewIntentParserService()
 
 	// TODO: Initialize post-processor
 	postProcessor := service.NewPostProcessorService()

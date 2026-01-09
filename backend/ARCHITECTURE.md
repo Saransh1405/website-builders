@@ -992,3 +992,463 @@ The flow is:
 
 Each service has a single responsibility and communicates through well-defined interfaces, making the system testable and maintainable.
 
+---
+
+## Simple Example: "make a todo app"
+
+Let's walk through a complete example with the prompt **"make a todo app"** to see exactly how the request flows through the system.
+
+### Step 1: Frontend Sends Request
+
+**Frontend Code**:
+```typescript
+fetch('http://localhost:8080/api/v1/generate/stream', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    prompt: "make a todo app",
+    options: {
+      useTypeScript: true,
+      styleLibrary: "tailwind"
+    }
+  })
+})
+```
+
+**Request Body**:
+```json
+{
+  "prompt": "make a todo app",
+  "options": {
+    "useTypeScript": true,
+    "styleLibrary": "tailwind"
+  }
+}
+```
+
+---
+
+### Step 2: HTTP Handler Receives Request
+
+**Location**: `internal/handler/http_handler.go`
+
+**What Happens**:
+1. Validates JSON structure ✓
+2. Sets SSE headers
+3. Calls `codeGenService.GenerateCodeStream()`
+
+**Data Passed**:
+```go
+req = GenerationRequest{
+    Prompt: "make a todo app",
+    Options: RequestOptions{
+        UseTypeScript: true,
+        StyleLibrary: "tailwind",
+    },
+}
+```
+
+---
+
+### Step 3: Intent Parser Analyzes Prompt
+
+**Location**: `internal/service/intent_parser_service.go`
+
+**What Happens**:
+- Analyzes: "make a todo app"
+- Detects: No explicit "React component" but "app" keyword
+- Extracts: Component name might be "Todo" or "TodoApp"
+- Detects features: None explicitly mentioned, uses options
+
+**Output**:
+```go
+Intent{
+    Type: "react-component",  // Default fallback
+    ComponentName: "TodoApp", // Extracted from "todo app"
+    Features: ["tailwind", "typescript"], // From options
+    Confidence: 0.6, // Medium confidence (not explicit)
+}
+```
+
+---
+
+### Step 4: Template Repository Loads Template
+
+**Location**: `internal/repository/template_repository.go`
+
+**What Happens**:
+- Intent type: `react-component`
+- Template path selected: `templates/react/component.tsx.template`
+- Reads file from filesystem
+
+**Template Loaded**:
+```tsx
+import React from 'react';
+
+interface Props {
+  // Define your component props here
+}
+
+export const Component: React.FC<Props> = ({}) => {
+  return (
+    <div className="component">
+      {/* Your component implementation */}
+    </div>
+  );
+};
+
+export default Component;
+```
+
+---
+
+### Step 5: System Prompt Built
+
+**Location**: `internal/service/code_generation_service.go`
+
+**What Happens**:
+- Combines intent + options + template
+- Creates detailed system prompt
+
+**System Prompt Created**:
+```
+You are an expert frontend developer specializing in React.
+Generate production-ready, clean, and maintainable code.
+
+Requirements:
+- Use functional components with hooks
+- Use TypeScript with proper type definitions
+- Use Tailwind CSS for styling
+- Component name should be: TodoApp
+- Follow React best practices and modern patterns
+- Include proper error handling
+- Make components reusable and well-documented
+- Required features: tailwind, typescript
+```
+
+**User Message to Claude**:
+```
+Template reference:
+```
+tsx
+import React from 'react';
+
+interface Props {
+  // Define your component props here
+}
+
+export const Component: React.FC<Props> = ({}) => {
+  return (
+    <div className="component">
+      {/* Your component implementation */}
+    </div>
+  );
+};
+
+export default Component;
+```
+
+User request: make a todo app
+```
+
+---
+
+### Step 6: Claude AI Generates Code
+
+**Location**: `internal/service/ai_service.go`
+
+**What Happens**:
+1. Sends HTTP POST to Claude API:
+```json
+{
+  "model": "claude-3-5-sonnet-20241022",
+  "max_tokens": 4096,
+  "system": "You are an expert frontend developer...",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Template reference: ... User request: make a todo app"
+    }
+  ],
+  "stream": true
+}
+```
+
+2. Receives streaming chunks:
+```
+Chunk 1: "import React, { useState } from 'react';\n\n"
+Chunk 2: "interface Todo {\n  id: number;\n  text: string;\n  completed: boolean;\n}\n\n"
+Chunk 3: "export const TodoApp: React.FC = () => {\n  const [todos, setTodos] = useState<Todo[]>([]);\n"
+Chunk 4: "  const [input, setInput] = useState('');\n\n  const addTodo = () => {..."
+...
+```
+
+3. Each chunk is sent immediately to frontend via SSE
+
+**Accumulated Code** (after all chunks):
+```tsx
+import React, { useState } from 'react';
+
+interface Todo {
+  id: number;
+  text: string;
+  completed: boolean;
+}
+
+export const TodoApp: React.FC = () => {
+  const [todos, setTodos] = useState<Todo[]>([]);
+  const [input, setInput] = useState('');
+
+  const addTodo = () => {
+    if (input.trim()) {
+      setTodos([...todos, {
+        id: Date.now(),
+        text: input,
+        completed: false
+      }]);
+      setInput('');
+    }
+  };
+
+  const toggleTodo = (id: number) => {
+    setTodos(todos.map(todo =>
+      todo.id === id ? { ...todo, completed: !todo.completed } : todo
+    ));
+  };
+
+  return (
+    <div className="max-w-md mx-auto mt-8 p-4">
+      <h1 className="text-2xl font-bold mb-4">Todo App</h1>
+      <div className="flex gap-2 mb-4">
+        <input
+          type="text"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyPress={(e) => e.key === 'Enter' && addTodo()}
+          className="flex-1 px-4 py-2 border rounded"
+          placeholder="Add a todo..."
+        />
+        <button
+          onClick={addTodo}
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Add
+        </button>
+      </div>
+      <ul className="space-y-2">
+        {todos.map(todo => (
+          <li
+            key={todo.id}
+            className={`flex items-center gap-2 p-2 border rounded ${
+              todo.completed ? 'line-through text-gray-500' : ''
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={todo.completed}
+              onChange={() => toggleTodo(todo.id)}
+            />
+            <span>{todo.text}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default TodoApp;
+```
+
+---
+
+### Step 7: Post-Processor Enhances Output
+
+**Location**: `internal/service/post_processor_service.go`
+
+**What Happens**:
+
+1. **Extracts Code**: Removes any markdown, keeps pure TSX
+2. **Generates package.json**:
+```json
+{
+  "name": "generated-project",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "typescript": "^5.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "tailwindcss": "^3.3.0",
+    "autoprefixer": "^10.4.14",
+    "postcss": "^8.4.24"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  }
+}
+```
+
+3. **Generates tailwind.config.js**:
+```js
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+```
+
+4. **Generates tsconfig.json**:
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "useDefineForClassFields": true,
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "jsx": "react-jsx",
+    "strict": true
+  },
+  "include": ["src"]
+}
+```
+
+5. **Organizes Files**:
+```go
+Files: [
+    {
+        Path: "src/components/todoapp.tsx",
+        Content: "import React... (full code)",
+        Type: "component"
+    },
+    {
+        Path: "package.json",
+        Content: "{...}",
+        Type: "config"
+    },
+    {
+        Path: "tailwind.config.js",
+        Content: "...",
+        Type: "config"
+    },
+    {
+        Path: "tsconfig.json",
+        Content: "...",
+        Type: "config"
+    }
+]
+```
+
+---
+
+### Step 8: Response Streamed to Frontend
+
+**Location**: `internal/handler/http_handler.go`
+
+**SSE Events Sent to Frontend**:
+
+**Event 1** (first chunk):
+```
+event: message
+data: {"componentCode":"import React, { useState } from 'react';\n\n"}
+```
+
+**Event 2** (more code):
+```
+event: message
+data: {"componentCode":"import React, { useState } from 'react';\n\ninterface Todo {\n  id: number;\n  text: string;\n  completed: boolean;\n}\n\n"}
+```
+
+**... (more events as code streams)**
+
+**Final Event** (complete response):
+```
+event: message
+data: {"componentCode":"...full code...","packageJson":"{...}","configFiles":{"tailwind.config.js":"...","tsconfig.json":"..."},"files":[{"path":"src/components/todoapp.tsx","content":"...","type":"component"},...]}
+```
+
+**Completion Event**:
+```
+event: complete
+data: "true"
+```
+
+---
+
+### Step 9: Frontend Receives and Displays
+
+**Frontend React Component**:
+```typescript
+function CodeViewer() {
+  const [code, setCode] = useState('');
+  
+  useEffect(() => {
+    // Stream handling code from earlier
+    // Each SSE event updates `code` state
+  }, []);
+
+  return (
+    <div>
+      <pre><code>{code}</code></pre>
+      {/* Code appears character by character as it streams */}
+    </div>
+  );
+}
+```
+
+**User Sees**:
+1. Code starts appearing: `import React...`
+2. More code streams in: `interface Todo...`
+3. Component code appears: `export const TodoApp...`
+4. Finally, complete file structure with package.json, configs, etc.
+
+---
+
+### Summary Timeline
+
+```
+0ms    → Frontend sends: "make a todo app"
+5ms    → Handler validates request
+10ms   → Intent Parser: "react-component, TodoApp"
+15ms   → Template loaded: component.tsx.template
+20ms   → System prompt built
+25ms   → Request sent to Claude API
+100ms  → First chunk arrives: "import React..."
+150ms  → Chunk streamed to frontend (SSE event)
+200ms  → Second chunk: "interface Todo..."
+250ms  → Chunk streamed to frontend
+...    → More chunks streaming
+2000ms → All chunks received
+2050ms → Post-processing: Generate package.json, configs
+2100ms → Final response sent
+2150ms → Completion event sent
+2200ms → Frontend displays complete code
+```
+
+---
+
+### Complete Data Transformation
+
+```
+Input:  "make a todo app" + { useTypeScript: true, styleLibrary: "tailwind" }
+  ↓
+Intent: { Type: "react-component", ComponentName: "TodoApp", Features: ["tailwind", "typescript"] }
+  ↓
+Template: Basic React component template
+  ↓
+AI Output: Full TodoApp component with useState, styling, etc.
+  ↓
+Post-Processed: Code + package.json + tailwind.config.js + tsconfig.json
+  ↓
+Output: Complete project structure ready to use
+```
+
+This example shows how a simple 3-word prompt transforms into a complete, production-ready React component with all necessary configuration files!

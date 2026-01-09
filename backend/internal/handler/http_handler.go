@@ -19,8 +19,6 @@ func NewHTTPHandler(codeGenService *service.CodeGenerationService) *HTTPHandler 
 	}
 }
 
-// GenerateCodeStream handles code generation with SSE streaming
-// POST /api/v1/generate/stream
 func (h *HTTPHandler) GenerateCodeStream(c *gin.Context) {
 	// TODO: Implement SSE streaming handler
 	// 1. Parse and validate request body
@@ -31,8 +29,6 @@ func (h *HTTPHandler) GenerateCodeStream(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented"})
 }
 
-// GenerateCode handles code generation without streaming
-// POST /api/v1/generate
 func (h *HTTPHandler) GenerateCode(c *gin.Context) {
 	// TODO: Implement non-streaming handler
 	// 1. Parse and validate request body
@@ -42,8 +38,6 @@ func (h *HTTPHandler) GenerateCode(c *gin.Context) {
 	c.JSON(http.StatusNotImplemented, gin.H{"message": "Not implemented"})
 }
 
-// HealthCheck handles health check requests
-// GET /api/v1/health
 func (h *HTTPHandler) HealthCheck(c *gin.Context) {
 	status := domain.HealthStatus{
 		Status:    "healthy",
@@ -59,14 +53,12 @@ func (h *HTTPHandler) HealthCheck(c *gin.Context) {
 	c.JSON(http.StatusOK, status)
 }
 
-// ErrorDetail represents a detailed error field
 type ErrorDetail struct {
 	Field string `json:"field"`
 	Issue string `json:"issue"`
 	Value string `json:"value,omitempty"`
 }
 
-// respondWithError sends a standardized error response
 func (h *HTTPHandler) respondWithError(
 	c *gin.Context,
 	statusCode int,
@@ -92,12 +84,10 @@ func (h *HTTPHandler) respondWithError(
 	c.JSON(statusCode, errorResponse)
 }
 
-// ErrorResponse represents the standard error response format
 type ErrorResponse struct {
 	Error ErrorInfo `json:"error"`
 }
 
-// ErrorInfo contains error details
 type ErrorInfo struct {
 	Code      string        `json:"code"`
 	Message   string        `json:"message"`

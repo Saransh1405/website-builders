@@ -9,25 +9,34 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// LoggerMiddleware provides request logging
 func LoggerMiddleware() gin.HandlerFunc {
-	// TODO: Implement request logging middleware
-	return gin.Logger()
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		latency := time.Since(start)
+		status := c.Writer.Status()
+		method := c.Request.Method
+		path := c.Request.URL.Path
+
+		log.Printf("[LOGGER MIDDLEWARE] %s %s %d %s", method, path, status, latency)
+	}
 }
 
-// RecoveryMiddleware provides panic recovery
 func RecoveryMiddleware() gin.HandlerFunc {
-	// TODO: Implement panic recovery middleware
-	return gin.CustomRecovery(func(c *gin.Context, recovered interface{}) {
-		log.Printf("Panic recovered: %v", recovered)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "Internal server error",
-		})
-		c.Abort()
-	})
+	return func(c *gin.Context) {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Printf("[RECOVERY MIDDLEWARE] Panic recovered: %v", r)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "Internal server error",
+				})
+				c.Abort()
+			}
+		}()
+		c.Next()
+	}
 }
 
-// TraceIDMiddleware adds a trace ID to each request
 func TraceIDMiddleware() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		traceID := c.GetHeader("X-Request-ID")
@@ -41,7 +50,6 @@ func TraceIDMiddleware() gin.HandlerFunc {
 	}
 }
 
-// generateTraceID generates a simple trace ID
 func generateTraceID() string {
 	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
